@@ -8,49 +8,88 @@ Infrastructure as Code for [Signal Stratum Consulting](https://signalstratum.com
 
 | Resource | Provider | Status |
 |----------|----------|--------|
-| **DNS** (signalstratum.com, .io) | Cloudflare | ✅ Ready |
-| **Email Routing** (catch-all → Gmail) | Cloudflare | ✅ Ready |
-| **Security Settings** (TLS, HTTPS) | Cloudflare | ✅ Ready |
-| **GitHub Org Connectivity** | GitHub | ✅ Ready |
-| **Future: Repo Management** | GitHub | 🔜 Planned |
+| **DNS** (signalstratum.com, .io) | Cloudflare | ✅ Active |
+| **Email Routing** (catch-all → Gmail) | Cloudflare | ✅ Active |
+| **Security Settings** (TLS 1.2+, strict SSL) | Cloudflare | ✅ Active |
+| **GitHub Repository Settings** | GitHub | ✅ Active |
+| **Branch Protection** (signed commits, status checks) | GitHub | ✅ Active |
 
 ## 🔐 Security Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     GitHub Actions                               │
-│                                                                  │
-│   ┌─────────────────┐     ┌─────────────────────────────────┐   │
-│   │ GitHub Secrets  │     │        1Password Vault          │   │
-│   │                 │     │       (ss-infrastructure)       │   │
-│   │ OP_SERVICE_     │────▶│                                 │   │
-│   │ ACCOUNT_TOKEN   │     │  • cloudflare/api-token         │   │
-│   │ (only secret)   │     │  • cloudflare/account-id        │   │
-│   └─────────────────┘     │  • cloudflare/com-zone-id       │   │
-│                           │  • cloudflare/io-zone-id        │   │
-│                           │  • github/api-token             │   │
-│                           └─────────────────────────────────┘   │
-│                                        │                         │
-│                                        ▼                         │
-│                              ┌─────────────────┐                 │
-│                              │    Terraform    │                 │
-│                              │                 │                 │
-│                              │  • Cloudflare   │                 │
-│                              │  • GitHub       │                 │
-│                              └─────────────────┘                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph gh["GitHub Actions"]
+        secret["GitHub Secret<br/>OP_SERVICE_ACCOUNT_TOKEN"]
+    end
+
+    subgraph op["1Password Vault (ss-infrastructure)"]
+        cf["cloudflare/*<br/>api-token, account-id, zone-ids"]
+        ghtoken["github/api-token"]
+        r2["r2/*<br/>access-key-id, secret-access-key"]
+    end
+
+    subgraph tf["Terraform"]
+        state[("R2 Backend<br/>tfstate")]
+        providers["Cloudflare + GitHub Providers"]
+    end
+
+    secret -->|authenticates| op
+    cf --> providers
+    ghtoken --> providers
+    r2 --> state
+    providers --> state
 ```
 
-**Only one secret in GitHub** — the 1Password service account token. Everything else lives in 1Password.
+One secret in GitHub. Everything else in 1Password.
+
+## 🛡️ Security Controls
+
+| Control | Implementation |
+|---------|----------------|
+| **Signed Commits** | GPG key required for all commits to main |
+| **Branch Protection** | PRs required, status checks must pass |
+| **Linear History** | Squash merge only, no merge commits |
+| **Push Restrictions** | Only repo owner can push to main |
+| **Fork Protection** | Workflows don't run on fork PRs |
+| **SHA-Pinned Actions** | All GitHub Actions pinned to commit SHAs |
+| **Secret Scanning** | Push protection enabled |
+| **Code Owners** | All changes require owner review |
+| **Dependency Updates** | Renovate dashboard (manual approval) |
 
 ## 🚀 How It Works
 
-### GitOps Workflow
+### CI/CD Workflow
 
-1. **Create PR** with infrastructure changes
-2. **GitHub Actions** runs `terraform plan`
-3. **Review** the plan in PR comments
-4. **Merge** to trigger `terraform apply`
+```mermaid
+flowchart TD
+    A[Push/PR] --> B{Fork PR?}
+    B -->|Yes| C[Skip workflow<br/>No secrets access]
+    B -->|No| D[Run CI]
+    
+    D --> E[Checkout + Setup]
+    E --> F[1Password injects secrets]
+    F --> G[TFLint + Checkov]
+    G --> H{Checks pass?}
+    
+    H -->|No| I[Fail - block merge]
+    H -->|Yes| J{Event type?}
+    
+    J -->|PR| K[terraform plan<br/>Comment on PR]
+    J -->|Push to main| L[terraform apply]
+    
+    K --> M[Review plan]
+    M --> N{Approve?}
+    N -->|Yes| O[Merge PR]
+    O --> L
+    N -->|No| P[Request changes]
+```
+
+### Workflow Logic
+
+1. **Fork protection** — workflow skips entirely for fork PRs. No secrets exposed, no wasted compute.
+2. **Lint + security scan** — TFLint catches Terraform issues, Checkov catches security misconfigs. Both must pass.
+3. **Plan on PR** — every PR gets a plan commented. Review actual changes before merge.
+4. **Apply on merge** — only `main` branch triggers apply. Linear history means clean state progression.
 
 ### Local Development
 
@@ -67,14 +106,21 @@ op run --env-file=../.env.tpl -- terraform plan
 ```
 .
 ├── .github/
+│   ├── CODEOWNERS               # Code ownership (all files → owner)
 │   └── workflows/
-│       └── terraform.yml    # CI/CD pipeline
+│       └── terraform.yml        # CI/CD pipeline
 ├── terraform/
-│   ├── providers.tf         # Provider configuration
-│   ├── variables.tf         # Input variables
-│   ├── cloudflare.tf        # Cloudflare resources
-│   └── github.tf            # GitHub resources
-├── .env.tpl                  # 1Password env template (local dev)
+│   ├── providers.tf             # Provider + R2 backend configuration
+│   ├── variables.tf             # Input variables
+│   ├── cloudflare.tf            # Zone data sources
+│   ├── dns.tf                   # DNS records (future)
+│   ├── email_routing.tf         # Email routing configuration
+│   ├── security.tf              # Zone security settings
+│   └── github.tf                # GitHub repo + branch protection
+├── .checkov.yaml                # Security scanner config
+├── .env.tpl                     # 1Password env template (local dev)
+├── renovate.json                # Dependency update dashboard
+├── SECURITY.md                  # Vulnerability reporting policy
 └── README.md
 ```
 
@@ -82,8 +128,9 @@ op run --env-file=../.env.tpl -- terraform plan
 
 ### Prerequisites
 
-- [Terraform](https://terraform.io) >= 1.6.0
+- [Terraform](https://terraform.io) >= 1.14.0
 - [1Password CLI](https://developer.1password.com/docs/cli/get-started) (for local dev)
+- GPG key for commit signing
 - Access to `ss-infrastructure` vault in 1Password
 
 ### Initial Setup (Done ✅)
@@ -100,36 +147,34 @@ op run --env-file=../.env.tpl -- terraform plan
 
 ## 📋 Roadmap
 
-- [x] Repository setup
+- [x] Repository setup with R2 backend
 - [x] GitHub Actions workflow with 1Password
-- [x] Connectivity verification (Cloudflare + GitHub)
-- [ ] Cloudflare DNS records
-- [ ] Cloudflare email routing
-- [ ] Cloudflare security settings (TLS, WAF)
-- [ ] GitHub organization settings
-- [ ] Remote state backend (Terraform Cloud or S3)
-- [ ] Website deployment (Cloudflare Pages)
+- [x] Cloudflare zone connectivity
+- [x] Cloudflare email routing (catch-all)
+- [x] Cloudflare security settings (TLS, HTTPS)
+- [x] GitHub repository management via Terraform
+- [x] Branch protection (signed commits, status checks)
+- [x] Security hardening (CODEOWNERS, SECURITY.md)
+- [ ] Cloudflare Pages deployment
+- [ ] Additional DNS records as needed
 
-## 🤔 Design Decisions
+## Design Decisions
 
-### Why 1Password over GitHub Secrets?
+### 1Password for Secrets
 
-- **Single source of truth** for all secrets
-- **Auditable** — see who accessed what
-- **Rotatable** — update once, works everywhere
-- **Shareable** — if team grows, just grant vault access
+Single secret in GitHub (service account token). Everything else lives in 1Password. Auditable, rotatable, and if I ever need to add collaborators they just get vault access.
 
-### Why Public Repo?
+### Public Repository
 
-This demonstrates:
-- Infrastructure as Code best practices
-- GitOps workflow
-- Security-conscious design (no secrets in code)
-- Real-world portfolio piece
+No secrets in code, everything references 1Password. Public visibility keeps me honest about security practices and serves as a portfolio piece.
 
 ### Bootstrap Exception
 
-This repo was created manually — it's the only exception. Everything else is managed by Terraform.
+This repo was created manually—it's the only exception. Terraform imported and now manages all settings.
+
+### Renovate over Dependabot
+
+Dependabot PRs can't access secrets (fork protection), so they'd fail CI. Renovate dashboard mode shows all updates in one issue. I review, check the box, author the PR myself. Maintains GPG signing and I stay in control.
 
 ---
 
