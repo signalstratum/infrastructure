@@ -19,6 +19,8 @@ jobs:
   terraform:
     name: Terraform
     runs-on: ubuntu-latest
+    # Skip fork PRs - they cannot access secrets and should not run workflows
+    if: github.event.pull_request.head.repo.fork != true
     defaults:
       run:
         working-directory: ${{ env.TF_WORKING_DIR }}
