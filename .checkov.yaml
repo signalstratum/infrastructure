@@ -8,10 +8,12 @@ framework:
 # Compact output
 compact: true
 
-# Skip checks that don't apply to this infrastructure type
+# Skip checks that don't apply to this project
 skip-check:
-  # We're using Cloudflare Email Routing, not a full mail server
-  - CKV2_AWS_SKIP  # AWS-specific checks (we use Cloudflare)
+  # CKV_GIT_1: Repo is intentionally public (open-source IaC)
+  - CKV_GIT_1
+  # CKV_GIT_5: Solo developer - cannot require 2 approvals
+  - CKV_GIT_5
   
 # Check severity threshold
 # soft-fail: true  # Don't fail the build (set in workflow)
