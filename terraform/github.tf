@@ -53,6 +53,11 @@ resource "github_branch_protection" "main" {
     required_approving_review_count = 0 # Solo developer, no required approvers
     dismiss_stale_reviews           = true
     require_code_owner_reviews      = false
+
+    # Only I can bypass PR requirement and merge
+    pull_request_bypassers = [
+      data.github_user.current.node_id
+    ]
   }
 
   # Require status checks
@@ -64,6 +69,9 @@ resource "github_branch_protection" "main" {
   # Require signed commits
   require_signed_commits = true
 
+  # Require linear history (no merge commits)
+  required_linear_history = true
+
   # Require conversation resolution
   require_conversation_resolution = true
 
@@ -73,6 +81,14 @@ resource "github_branch_protection" "main" {
 
   # Enforce for admins too
   enforce_admins = true
+
+  # Restrict who can push to main (only me)
+  restrict_pushes {
+    blocks_creations = true
+    push_allowances = [
+      data.github_user.current.node_id
+    ]
+  }
 }
 
 # -----------------------------------------------------------------------------
