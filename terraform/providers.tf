@@ -10,6 +10,10 @@ terraform {
       source  = "integrations/github"
       version = "~> 6.9"
     }
+    onepassword = {
+      source  = "1Password/onepassword"
+      version = "~> 3.0"
+    }
   }
 
   # Cloudflare R2 backend (S3-compatible)
@@ -38,4 +42,9 @@ provider "cloudflare" {
 provider "github" {
   owner = "signalstratum"
   # GITHUB_TOKEN env var set by 1Password GitHub Action
+}
+
+provider "onepassword" {
+  # OP_SERVICE_ACCOUNT_TOKEN env var for service account auth
+  # Or OP_CONNECT_HOST + OP_CONNECT_TOKEN for Connect server
 }
