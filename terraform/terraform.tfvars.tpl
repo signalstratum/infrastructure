@@ -4,4 +4,4 @@
 cloudflare_account_id  = "{{ op://ss-infrastructure/cloudflare/account-id }}"
 cloudflare_zone_id_com = "{{ op://ss-infrastructure/cloudflare/com-zone-id }}"
 cloudflare_zone_id_io  = "{{ op://ss-infrastructure/cloudflare/io-zone-id }}"
-onepassword_vault_id   = "ss-tf-managed"
+onepassword_vault_id   = "5canigc72bhjiok7wru33l7rgy"
