@@ -1,6 +1,7 @@
-# -----------------------------------------------------------------------------
-# Cloudflare Variables (populated via TF_VAR_ environment variables from 1Password)
-# -----------------------------------------------------------------------------
+# Input Variables
+#
+# All values populated via TF_VAR_ environment variables from 1Password.
+# See .env.tpl for the 1Password references.
 
 variable "cloudflare_account_id" {
   description = "Cloudflare account ID"
@@ -17,21 +18,8 @@ variable "cloudflare_zone_id_io" {
   type        = string
 }
 
-# -----------------------------------------------------------------------------
-# Local values for convenience
-# -----------------------------------------------------------------------------
-
-locals {
-  cloudflare_account_id = var.cloudflare_account_id
-
-  zones = {
-    com = {
-      name    = "signalstratum.com"
-      zone_id = var.cloudflare_zone_id_com
-    }
-    io = {
-      name    = "signalstratum.io"
-      zone_id = var.cloudflare_zone_id_io
-    }
-  }
+variable "onepassword_vault_id" {
+  description = "1Password vault ID for storing Terraform-generated secrets (optional)"
+  type        = string
+  default     = null
 }

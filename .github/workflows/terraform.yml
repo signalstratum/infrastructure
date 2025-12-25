@@ -34,18 +34,23 @@ jobs:
         with:
           export-env: true
         env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          # GitHub Provider
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_INFRA_SA }}
+          # Provider authentication
           GITHUB_TOKEN: op://ss-infrastructure/github/api-token
-          # Cloudflare Provider
           CLOUDFLARE_API_TOKEN: op://ss-infrastructure/cloudflare/api-token
-          TF_VAR_cloudflare_account_id: op://ss-infrastructure/cloudflare/account-id
-          TF_VAR_cloudflare_zone_id_com: op://ss-infrastructure/cloudflare/com-zone-id
-          TF_VAR_cloudflare_zone_id_io: op://ss-infrastructure/cloudflare/io-zone-id
           # R2 Backend (S3-compatible)
           AWS_ACCESS_KEY_ID: op://ss-infrastructure/r2/access-key-id
           AWS_SECRET_ACCESS_KEY: op://ss-infrastructure/r2/secret-access-key
           AWS_ENDPOINT_URL_S3: op://ss-infrastructure/r2/url
+
+      - name: Inject tfvars from 1Password
+        run: op inject -i terraform.tfvars.tpl -o terraform.tfvars
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_INFRA_SA }}
+
+      - name: Set 1Password provider config
+        run: |
+          echo "OP_SERVICE_ACCOUNT_TOKEN=${{ secrets.OP_TF_SA }}" >> $GITHUB_ENV
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
