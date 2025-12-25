@@ -26,8 +26,10 @@ resource "github_actions_organization_permissions" "this" {
     github_owned_allowed = true
     patterns_allowed = [
       "1password/*",
+      "bridgecrewio/*",
       "cloudflare/*",
       "hashicorp/*",
+      "terraform-linters/*",
     ]
   }
 }
@@ -53,7 +55,7 @@ module "repo_talos_clusters" {
 
   name        = "talos-clusters"
   description = "Talos Kubernetes clusters on Hetzner Cloud with Cloudflare zero-trust access"
-  visibility  = "private"
+  visibility  = "public"
   auto_init   = true
 
   owner_bypass_node_id   = local.owner_node_id
