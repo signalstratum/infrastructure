@@ -183,7 +183,7 @@ resource "cloudflare_zero_trust_access_group" "github_org_members" {
 # WARP Device Enrollment - allows users to enroll devices via WARP client
 resource "cloudflare_zero_trust_access_application" "warp_enrollment" {
   account_id = local.cloudflare_account_id
-  name       = "WARP Device Enrollment"
+  name       = "Warp Login App" # Cloudflare's default name for WARP enrollment
   type       = "warp"
 
   session_duration = "720h" # 30 days
@@ -254,6 +254,11 @@ resource "cloudflare_zero_trust_device_default_profile" "warp_settings" {
       description = "Home LAN - tool-chain.io (k8s nodes, infrastructure)"
     }
   ]
+
+  # WARP mode (full tunnel with Gateway)
+  service_mode_v2 = {
+    mode = "warp"
+  }
 
   # Client behavior
   allowed_to_leave  = true
