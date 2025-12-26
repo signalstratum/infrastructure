@@ -3,6 +3,8 @@
 # All Cloudflare configuration for signalstratum.com and signalstratum.io:
 #   - Zone data sources (connectivity verification)
 #   - Zero Trust Tunnel (Virginia Talos cluster access)
+#   - Zero Trust WARP client settings (split tunnels, enrollment)
+#   - Zero Trust Gateway (DNS filtering, logging)
 #   - DNS records
 #   - Email routing
 #   - Security settings (TLS, HTTPS)
@@ -31,6 +33,7 @@ data "cloudflare_zone" "io" {
 resource "cloudflare_zero_trust_tunnel_cloudflared" "virginia_talos" {
   account_id = local.cloudflare_account_id
   name       = "virginia-talos"
+  config_src = "cloudflare"
 }
 
 resource "cloudflare_zero_trust_tunnel_cloudflared_config" "virginia_talos" {
@@ -39,24 +42,234 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "virginia_talos" {
 
   config = {
     warp_routing = { enabled = true }
-    ingress      = [{ service = "http_status:404" }]
+    ingress = [
+      {
+        hostname = "kube.signalstratum.com"
+        service  = "tcp://localhost:6443"
+      },
+      {
+        hostname = "kube.signalstratum.io"
+        service  = "tcp://localhost:6443"
+      },
+      { service = "http_status:404" } # catch-all
+    ]
   }
 }
 
 resource "cloudflare_zero_trust_tunnel_cloudflared_route" "virginia_private_network" {
   account_id = local.cloudflare_account_id
   tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.virginia_talos.id
-  network    = "10.0.0.0/16"
-  comment    = "Hetzner Cloud private network - Virginia Talos cluster"
+  network    = "10.0.1.0/24"
+  comment    = "Virginia Talos cluster nodes - K8s/Talos API access"
 }
 
 data "cloudflare_zero_trust_tunnel_cloudflared_token" "virginia_talos" {
   account_id = local.cloudflare_account_id
   tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.virginia_talos.id
+
+  depends_on = [cloudflare_zero_trust_tunnel_cloudflared.virginia_talos]
 }
 
-# NOTE: Split tunnel "Include" for 10.0.0.0/16 must be configured manually:
-# Cloudflare Dashboard → Settings → WARP Client → Device settings → Split Tunnels
+# =============================================================================
+# ZERO TRUST TUNNEL - Home LAN (tool-chain.io)
+# =============================================================================
+# Zero-trust access to home network via WARP:
+#   1. Cloudflared runs on Talos worker nodes (system extension)
+#   2. Tunnel exposes home LAN CIDR (192.168.1.0/24)
+#   3. Users connect via Cloudflare WARP client when remote
+#   4. Enables access to home k8s nodes, NAS, and other infrastructure
+
+resource "cloudflare_zero_trust_tunnel_cloudflared" "home_lan" {
+  account_id = local.cloudflare_account_id
+  name       = "home-lan"
+  config_src = "cloudflare"
+}
+
+resource "cloudflare_zero_trust_tunnel_cloudflared_config" "home_lan" {
+  account_id = local.cloudflare_account_id
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.home_lan.id
+
+  config = {
+    warp_routing = { enabled = true }
+    ingress      = [{ service = "http_status:404" }]
+  }
+}
+
+resource "cloudflare_zero_trust_tunnel_cloudflared_route" "home_private_network" {
+  account_id = local.cloudflare_account_id
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.home_lan.id
+  network    = "192.168.1.0/24"
+  comment    = "Home LAN - tool-chain.io (k8s nodes, infrastructure)"
+}
+
+data "cloudflare_zero_trust_tunnel_cloudflared_token" "home_lan" {
+  account_id = local.cloudflare_account_id
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.home_lan.id
+
+  depends_on = [cloudflare_zero_trust_tunnel_cloudflared.home_lan]
+}
+
+# Store home tunnel credentials in 1Password
+module "onepassword_home_tunnel" {
+  count  = local.onepassword_enabled ? 1 : 0
+  source = "./modules/onepassword-item"
+
+  vault_id = var.onepassword_vault_id
+  title    = "Cloudflare Tunnel - Home LAN"
+  category = "password"
+  url      = "https://one.dash.cloudflare.com/"
+
+  fields = {
+    tunnel_id    = cloudflare_zero_trust_tunnel_cloudflared.home_lan.id
+    tunnel_token = data.cloudflare_zero_trust_tunnel_cloudflared_token.home_lan.token
+  }
+
+  tags  = ["terraform", "cloudflare", "home-lan", "tunnel"]
+  notes = "Cloudflare Tunnel for home LAN (tool-chain.io). Used by Talos worker nodes. Managed by Terraform."
+}
+
+# =============================================================================
+# ZERO TRUST ACCESS - Enrollment & Identity
+# =============================================================================
+# Identity providers for WARP device enrollment
+# Allows: GitHub org members, email OTP as fallback
+
+resource "cloudflare_zero_trust_access_identity_provider" "email_otp" {
+  account_id = local.cloudflare_account_id
+  name       = "Email OTP"
+  type       = "onetimepin"
+  config     = {}
+}
+
+resource "cloudflare_zero_trust_access_identity_provider" "github" {
+  count      = var.github_app_client_id != "" ? 1 : 0
+  account_id = local.cloudflare_account_id
+  name       = "GitHub"
+  type       = "github"
+
+  config = {
+    client_id     = var.github_app_client_id
+    client_secret = var.github_app_client_secret
+  }
+}
+
+resource "cloudflare_zero_trust_access_group" "allowed_users" {
+  account_id = local.cloudflare_account_id
+  name       = "Allowed Users - WARP Enrollment"
+
+  include = [
+    { email = { email = "jaredhawkins@tool-chain.io" } },
+    { email_domain = { domain = "signalstratum.com" } },
+    { email_domain = { domain = "signalstratum.io" } }
+  ]
+}
+
+# Access group for GitHub org members (when GitHub IdP is configured)
+resource "cloudflare_zero_trust_access_group" "github_org_members" {
+  count      = var.github_app_client_id != "" ? 1 : 0
+  account_id = local.cloudflare_account_id
+  name       = "GitHub - signalstratum org"
+
+  include = [
+    {
+      github_organization = {
+        name                 = "signalstratum"
+        identity_provider_id = cloudflare_zero_trust_access_identity_provider.github[0].id
+      }
+    }
+  ]
+}
+
+# WARP Device Enrollment - allows users to enroll devices via WARP client
+resource "cloudflare_zero_trust_access_application" "warp_enrollment" {
+  account_id = local.cloudflare_account_id
+  name       = "Warp Login App" # Cloudflare's default name for WARP enrollment
+  type       = "warp"
+
+  session_duration = "720h" # 30 days
+
+  # Allow both GitHub and Email OTP login methods
+  allowed_idps = concat(
+    [cloudflare_zero_trust_access_identity_provider.email_otp.id],
+    var.github_app_client_id != "" ? [cloudflare_zero_trust_access_identity_provider.github[0].id] : []
+  )
+
+  # Enrollment policy - who can enroll devices
+  policies = [
+    {
+      name     = "Allow signalstratum users"
+      decision = "allow"
+      include = [
+        { group = { id = cloudflare_zero_trust_access_group.allowed_users.id } }
+      ]
+    }
+  ]
+}
+
+# =============================================================================
+# ZERO TRUST GATEWAY - DNS Location
+# =============================================================================
+# DNS location for Gateway filtering and logging
+# Configure router to use these DNS servers for Zero Trust visibility
+
+resource "cloudflare_zero_trust_dns_location" "home_lan" {
+  account_id = local.cloudflare_account_id
+  name       = "Home LAN - tool-chain.io"
+
+  # Networks that will use this DNS location (for identification)
+  # Note: Home IP is dynamic, so this uses DNS-over-HTTPS for identification
+  networks = []
+
+  # Enables ECS (EDNS Client Subnet) for better geo-routing
+  ecs_support = false
+}
+
+# =============================================================================
+# ZERO TRUST DEVICE SETTINGS
+# =============================================================================
+# Default WARP client profile - configures split tunnel routing
+# Uses "Include" mode - only specified CIDRs go through WARP, rest goes direct.
+
+resource "cloudflare_zero_trust_device_default_profile" "warp_settings" {
+  account_id = local.cloudflare_account_id
+
+  # Split tunnel: Include mode - route only these CIDRs through WARP
+  include = [
+    # Hetzner Cloud - Virginia Talos cluster
+    {
+      address     = "10.0.0.0/16"
+      description = "Hetzner Cloud private network - Virginia Talos cluster"
+    },
+    {
+      address     = "10.244.0.0/16"
+      description = "Kubernetes Pod CIDR - Virginia Talos cluster"
+    },
+    {
+      address     = "10.96.0.0/12"
+      description = "Kubernetes Service CIDR - Virginia Talos cluster"
+    },
+    # Home LAN - tool-chain.io
+    {
+      address     = "192.168.1.0/24"
+      description = "Home LAN - tool-chain.io (k8s nodes, infrastructure)"
+    }
+  ]
+
+  # WARP mode (full tunnel with Gateway)
+  service_mode_v2 = {
+    mode = "warp"
+  }
+
+  # Client behavior
+  allowed_to_leave  = true
+  allow_mode_switch = true
+  allow_updates     = true
+  auto_connect      = 0
+  switch_locked     = false
+  captive_portal    = 180
+  tunnel_protocol   = "wireguard"
+  support_url       = "https://signalstratum.com"
+}
 
 # Store tunnel credentials in 1Password
 module "onepassword_virginia_tunnel" {
@@ -81,25 +294,27 @@ module "onepassword_virginia_tunnel" {
 # DNS RECORDS
 # =============================================================================
 
-# Kubernetes API - private IP accessed via WARP tunnel
+# Kubernetes API - routed through Cloudflare tunnel to localhost:6443
+# Client must use: cloudflared access tcp --hostname kube.signalstratum.com --url localhost:6443
+# Then: kubectl --server=https://localhost:6443
 resource "cloudflare_dns_record" "com_kube" {
   zone_id = local.zones.com.zone_id
   name    = "kube"
-  type    = "A"
-  content = "10.0.1.100"
-  ttl     = 300
-  proxied = false
-  comment = "Virginia Talos cluster API - private IP via WARP"
+  type    = "CNAME"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.virginia_talos.id}.cfargotunnel.com"
+  ttl     = 1    # Auto TTL when proxied
+  proxied = true # Required for tunnel ingress routing
+  comment = "Virginia Talos cluster API - TCP tunnel to localhost:6443"
 }
 
 resource "cloudflare_dns_record" "io_kube" {
   zone_id = local.zones.io.zone_id
   name    = "kube"
   type    = "CNAME"
-  content = "kube.signalstratum.com"
-  ttl     = 300
-  proxied = false
-  comment = "Alias to .com for Virginia Talos cluster"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.virginia_talos.id}.cfargotunnel.com"
+  ttl     = 1
+  proxied = true
+  comment = "Virginia Talos cluster API - TCP tunnel to localhost:6443"
 }
 
 # DMARC records for email authentication
