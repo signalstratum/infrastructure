@@ -38,6 +38,7 @@ variable "github_oauth_client_id" {
 
 variable "github_oauth_client_secret" {
   description = "GitHub OAuth App Client Secret (for Cloudflare Zero Trust)"
+
   type        = string
   sensitive   = true
   default     = ""

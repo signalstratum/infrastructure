@@ -167,6 +167,7 @@ resource "cloudflare_zero_trust_access_group" "allowed_users" {
 # Access group for GitHub org members (when GitHub IdP is configured)
 resource "cloudflare_zero_trust_access_group" "github_org_members" {
   count      = var.github_oauth_client_id != "" ? 1 : 0
+
   account_id = local.cloudflare_account_id
   name       = "GitHub - signalstratum org"
 
