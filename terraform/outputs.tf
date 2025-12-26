@@ -48,6 +48,27 @@ output "virginia_tunnel_token" {
   sensitive   = true
 }
 
+output "home_tunnel_id" {
+  description = "Cloudflare Tunnel ID for home LAN"
+  value       = cloudflare_zero_trust_tunnel_cloudflared.home_lan.id
+}
+
+output "home_tunnel_token" {
+  description = "Tunnel token for home LAN cloudflared connector"
+  value       = data.cloudflare_zero_trust_tunnel_cloudflared_token.home_lan.token
+  sensitive   = true
+}
+
+output "gateway_dns_location" {
+  description = "Gateway DNS location for router configuration"
+  value = {
+    name                 = cloudflare_zero_trust_dns_location.home_lan.name
+    doh_subdomain        = cloudflare_zero_trust_dns_location.home_lan.doh_subdomain
+    ipv4_destination     = cloudflare_zero_trust_dns_location.home_lan.ipv4_destination
+    ipv4_destination_alt = cloudflare_zero_trust_dns_location.home_lan.ipv4_destination_backup
+  }
+}
+
 output "email_routing" {
   description = "Email routing configuration"
   value = {
