@@ -44,22 +44,22 @@ variable "github_app_client_secret" {
   default     = ""
 }
 
-# For ARC (Actions Runner Controller)
-variable "github_app_id" {
-  description = "GitHub App ID (for ARC)"
-  type        = string
-  default     = ""
-}
-
-variable "github_app_installation_id" {
-  description = "GitHub App Installation ID (for ARC)"
-  type        = string
-  default     = ""
-}
-
-variable "github_app_private_key" {
-  description = "GitHub App Private Key PEM (for ARC)"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
+# Commented out until ARC (Actions Runner Controller) is deployed
+# variable "github_app_id" {
+#   description = "GitHub App ID (for ARC)"
+#   type        = string
+#   default     = ""
+# }
+#
+# variable "github_app_installation_id" {
+#   description = "GitHub App Installation ID (for ARC)"
+#   type        = string
+#   default     = ""
+# }
+#
+# variable "github_app_private_key" {
+#   description = "GitHub App Private Key PEM (for ARC)"
+#   type        = string
+#   sensitive   = true
+#   default     = ""
+# }

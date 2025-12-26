@@ -15,6 +15,7 @@ TF_VAR_github_app_client_id=op://ss-infrastructure/github/github-app-client-id
 TF_VAR_github_app_client_secret=op://ss-infrastructure/github/github-app-client-secret
 
 # GitHub App - Signal Stratum Infra (ARC - Actions Runner Controller)
-TF_VAR_github_app_id=op://ss-infrastructure/github/github-app-id
-TF_VAR_github_app_installation_id=op://ss-infrastructure/github/github-app-installation-id
-TF_VAR_github_app_private_key=op://ss-infrastructure/github/github-app-private-key
+# Uncomment when ARC is deployed
+# TF_VAR_github_app_id=op://ss-infrastructure/github/github-app-id
+# TF_VAR_github_app_installation_id=op://ss-infrastructure/github/github-app-installation-id
+# TF_VAR_github_app_private_key=op://ss-infrastructure/github/github-app-private-key

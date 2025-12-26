@@ -45,10 +45,10 @@ jobs:
           # GitHub App - Cloudflare Zero Trust OAuth
           TF_VAR_github_app_client_id: op://ss-infrastructure/github/github-app-client-id
           TF_VAR_github_app_client_secret: op://ss-infrastructure/github/github-app-client-secret
-          # GitHub App - ARC (Actions Runner Controller)
-          TF_VAR_github_app_id: op://ss-infrastructure/github/github-app-id
-          TF_VAR_github_app_installation_id: op://ss-infrastructure/github/github-app-installation-id
-          TF_VAR_github_app_private_key: op://ss-infrastructure/github/github-app-private-key
+          # GitHub App - ARC (Actions Runner Controller) - uncomment when ARC is deployed
+          # TF_VAR_github_app_id: op://ss-infrastructure/github/github-app-id
+          # TF_VAR_github_app_installation_id: op://ss-infrastructure/github/github-app-installation-id
+          # TF_VAR_github_app_private_key: op://ss-infrastructure/github/github-app-private-key
 
       - name: Inject tfvars from 1Password
         run: op inject -i terraform.tfvars.tpl -o terraform.tfvars
@@ -77,7 +77,6 @@ jobs:
       - name: Run TFLint
         id: tflint
         run: tflint --format compact
-        continue-on-error: true
 
       - name: Run Checkov Security Scan
         id: checkov
@@ -86,7 +85,7 @@ jobs:
           directory: .
           framework: terraform
           quiet: true
-          soft_fail: true
+          soft_fail: false
           output_format: cli
           download_external_modules: false
 
