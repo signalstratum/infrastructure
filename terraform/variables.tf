@@ -27,18 +27,18 @@ variable "onepassword_vault_id" {
 # -----------------------------------------------------------------------------
 # GitHub App - Signal Stratum Infra
 # -----------------------------------------------------------------------------
-# Used for: Cloudflare Zero Trust (OAuth), Actions Runner Controller (ARC)
-# Stored in: ss-infrastructure/github
+# Used for: Cloudflare Zero Trust (OAuth)
+# Stored in: ss-infrastructure/github (oauth-client-id, oauth-client-secret)
 
-# For Cloudflare Zero Trust (OAuth section of GitHub App)
-variable "github_app_client_id" {
-  description = "GitHub App OAuth Client ID (for Cloudflare Zero Trust)"
+variable "github_oauth_client_id" {
+  description = "GitHub OAuth App Client ID (for Cloudflare Zero Trust)"
   type        = string
   default     = ""
 }
 
-variable "github_app_client_secret" {
-  description = "GitHub App OAuth Client Secret (for Cloudflare Zero Trust)"
+variable "github_oauth_client_secret" {
+  description = "GitHub OAuth App Client Secret (for Cloudflare Zero Trust)"
+
   type        = string
   sensitive   = true
   default     = ""
