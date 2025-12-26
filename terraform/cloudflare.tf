@@ -142,14 +142,14 @@ resource "cloudflare_zero_trust_access_identity_provider" "email_otp" {
 }
 
 resource "cloudflare_zero_trust_access_identity_provider" "github" {
-  count      = var.github_app_client_id != "" ? 1 : 0
+  count      = var.github_oauth_client_id != "" ? 1 : 0
   account_id = local.cloudflare_account_id
   name       = "GitHub"
   type       = "github"
 
   config = {
-    client_id     = var.github_app_client_id
-    client_secret = var.github_app_client_secret
+    client_id     = var.github_oauth_client_id
+    client_secret = var.github_oauth_client_secret
   }
 }
 
@@ -166,7 +166,7 @@ resource "cloudflare_zero_trust_access_group" "allowed_users" {
 
 # Access group for GitHub org members (when GitHub IdP is configured)
 resource "cloudflare_zero_trust_access_group" "github_org_members" {
-  count      = var.github_app_client_id != "" ? 1 : 0
+  count      = var.github_oauth_client_id != "" ? 1 : 0
   account_id = local.cloudflare_account_id
   name       = "GitHub - signalstratum org"
 
@@ -191,7 +191,7 @@ resource "cloudflare_zero_trust_access_application" "warp_enrollment" {
   # Allow both GitHub and Email OTP login methods
   allowed_idps = concat(
     [cloudflare_zero_trust_access_identity_provider.email_otp.id],
-    var.github_app_client_id != "" ? [cloudflare_zero_trust_access_identity_provider.github[0].id] : []
+    var.github_oauth_client_id != "" ? [cloudflare_zero_trust_access_identity_provider.github[0].id] : []
   )
 
   # Enrollment policy - who can enroll devices

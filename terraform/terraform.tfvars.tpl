@@ -5,3 +5,7 @@ cloudflare_account_id  = "{{ op://ss-infrastructure/cloudflare/account-id }}"
 cloudflare_zone_id_com = "{{ op://ss-infrastructure/cloudflare/com-zone-id }}"
 cloudflare_zone_id_io  = "{{ op://ss-infrastructure/cloudflare/io-zone-id }}"
 onepassword_vault_id   = "5canigc72bhjiok7wru33l7rgy"
+
+# GitHub OAuth App (for Cloudflare Zero Trust)
+github_oauth_client_id     = "{{ op://ss-infrastructure/github/oauth-client-id }}"
+github_oauth_client_secret = "{{ op://ss-infrastructure/github/oauth-client-secret }}"
